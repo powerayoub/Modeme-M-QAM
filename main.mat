@@ -137,3 +137,4 @@ if ismember(M, valid_sizes)
 else
     disp(['Taille QAM invalide. Veuillez choisir parmi : ', num2str(valid_sizes)]);
 end
+
