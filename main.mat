@@ -1,0 +1,138 @@
+function plot_qam_constellation_with_noise(M, snr)
+    % Affiche la constellation QAM avec bruit ajouté
+    % M : La taille de la constellation QAM
+    % snr : Rapport Signal/Bruit (SNR) en dB
+
+    % Définir les points exclus en fonction de la taille de la QAM
+    exclusions = containers.Map({32, 128, 512, 2048}, {4, 16, 64, 196});
+    exclude_points = 0; % Valeur par défaut si aucune exclusion
+    if isKey(exclusions, M)
+        exclude_points = exclusions(M);
+    end
+
+    % Générer les points de la constellation
+    [points, excluded_points] = generate_qam_constellation(M, exclude_points);
+
+    % Ajouter du bruit AWGN avec effet nuage
+    noisy_points = add_awgn_noise(points, snr);
+
+    % Tracer la constellation 
+    figure('Position', [100, 100, 800, 600]); % Définir la taille de la figure
+    hold on;
+
+    % Tracer les symboles QAM originaux
+    scatter(points(:, 1), points(:, 2), 50, 'b', 'filled', 'DisplayName', 'Symboles QAM');
+
+    % Tracer les symboles QAM bruités comme des nuages
+    scatter(noisy_points(:, 1), noisy_points(:, 2), 10, 'r', 'filled', ...
+            'DisplayName', 'Symboles QAM Bruités');
+
+    % Tracage des points exclus avec des croix jaunes 
+    if ~isempty(excluded_points)
+        scatter(excluded_points(:, 1), excluded_points(:, 2), 100, 'y', 'x', ...
+                'LineWidth', 2, 'DisplayName', 'Symboles Exclus');
+    end
+
+    % Le graphique
+    grid on;
+    title(sprintf('Constellation %d-QAM avec Bruit (SNR = %d dB)', M, snr));
+    xlabel('In-Phase (I)');
+    ylabel('Quadrature (Q)');
+    axis equal;
+    legend('show');
+
+    % Définir les ticks (les marques présentes sur les axes d'un graphique)
+    max_val = max(max(abs(points))) + 2;
+    ticks = -max_val:2:max_val;
+    xticks(ticks(ticks ~= 0));
+    yticks(ticks(ticks ~= 0));
+
+    % Ajouter les lignes des axes
+    plot([0 0], [-max_val max_val], 'k', 'LineWidth', 1.2);
+    plot([-max_val max_val], [0 0], 'k', 'LineWidth', 1.2);
+
+    hold off;
+end
+
+function noisy_points = add_awgn_noise(points, snr)
+    % Ajouter du bruit blanc gaussien (AWGN) aux points de la constellation
+    % avec un effet nuage plus visible
+
+    % Calculer la puissance moyenne des symboles
+    signal_power = mean(sum(abs(points).^2, 2));
+
+    % Convertir le SNR de dB en échelle linéaire
+    snr_linear = 10^(snr / 10);
+
+    % Calculer la variance du bruit
+    noise_variance = signal_power / snr_linear;
+
+    % Générer le bruit (ajuster la dispersion pour un effet nuageux)
+    noise_std = sqrt(noise_variance / 2); % Écart-type du bruit
+    noise_real = noise_std * randn(size(points, 1), 1); % Partie réelle
+    noise_imag = noise_std * randn(size(points, 1), 1); % Partie imaginaire
+
+    % Ajouter le bruit aux points (en I et Q séparément)
+    noisy_points = points + [noise_real, noise_imag];
+end
+
+function [points, excluded_points] = generate_qam_constellation(M, exclude_points)
+    % Générer les points pour la constellation QAM
+    % M : La taille de la constellation QAM
+    % exclude_points : Le nombre de points à exclure des coins
+
+    side_len = sqrt(M);
+    if M == 32
+        side_len_x = 6;
+        side_len_y = 6;
+    elseif M == 128
+        side_len_x = 12;
+        side_len_y = 12;
+    elseif M == 512
+        side_len_x = 24;
+        side_len_y = 24;
+    elseif M == 2048
+        side_len_x = 46;
+        side_len_y = 46;
+    else
+        side_len_x = side_len;
+        side_len_y = side_len;
+    end
+
+    % Générer tous les points possibles dans la grille
+    [X, Y] = meshgrid(-side_len_x + 1:2:side_len_x-1, -side_len_y + 1:2:side_len_y-1);
+    points = [X(:), Y(:)];
+
+    % Retirer le point d'origine (0, 0)
+    points(any(points == 0, 2), :) = [];
+
+    excluded_points = [];
+    if exclude_points > 0
+        % Calculer la taille du carré de points à exclure de chaque coin
+        square_size = sqrt(exclude_points / 4);
+        excluded_points = [];
+
+        % Calculer les coordonnées des points à exclure
+        for i = 0:square_size-1
+            for j = 0:square_size-1
+                excluded_points = [excluded_points;
+                    side_len_x - 1 - 2*i, side_len_y - 1 - 2*j;
+                    -side_len_x + 1 + 2*i, side_len_y - 1 - 2*j;
+                    side_len_x - 1 - 2*i, -side_len_y + 1 + 2*j;
+                    -side_len_x + 1 + 2*i, -side_len_y + 2*j];
+            end
+        end
+    end
+end
+
+% Demander à l'utilisateur d'entrer les paramètres
+M = input('Entrez la taille de la QAM (4, 16, 32, 64, 128, 512, 1024, 2048, 4096) : ');
+snr = input('Entrez le SNR (Rapport Signal/Bruit) en dB : ');
+
+valid_sizes = [4, 16, 32, 64, 128, 512, 1024, 2048, 4096];
+if ismember(M, valid_sizes)
+    disp('Génération de la constellation QAM avec bruit. Affichage du graphique...');
+    plot_qam_constellation_with_noise(M, snr);
+else
+    disp(['Taille QAM invalide. Veuillez choisir parmi : ', num2str(valid_sizes)]);
+end
